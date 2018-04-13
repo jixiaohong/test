@@ -27,20 +27,21 @@ spin_lock_init(GIOP_lcok);
 
 
 static void GIOP_do_tasklet(unsigned long)
-{
+{   
 	pinval = gpio_get_value(GPIO_PF0);
-    
+	
     wake_up_interruptible(&GIOP_waitq); 
 }
 
 static ssize_t GIOP_park_read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
 {
-	if (gpio_get_value(GPIO_PF0)){
-    	wait_event_interruptible(GIOP_waitq, pinval);
+	pinval = gpio_get_value(GPIO_PF0);
+	if (pinval)
+	{
+   		wait_event_interruptible(GIOP_waitq, pinval);
 
-    	copy_to_user(buff, &pinval, 1);
+   		copy_to_user(buff, &pinval, 1);
 	}
-	
     return 1;	
 }
 
