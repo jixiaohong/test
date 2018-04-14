@@ -17,13 +17,9 @@ static unsigned int flag = 0;
 
 static volatile int pinval;
 
-
-
 static DECLARE_TASKLET(GIOP_taskllet, GIOP_do_tasklet, 0);
 static DECLARE_WAIT_QUEUE_HEAD(GIOP_waitq);
-static spinlock_t GIOP_lcok;
 
-spin_lock_init(GIOP_lcok);
 
 
 static void GIOP_do_tasklet(unsigned long)
@@ -36,11 +32,10 @@ static void GIOP_do_tasklet(unsigned long)
 static ssize_t GIOP_park_read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
 {
 	pinval = gpio_get_value(GPIO_PF0);
-	if (pinval){
-   		wait_event_interruptible(GIOP_waitq, pinval);
 
-   		copy_to_user(buff, &pinval, 1);
-	}
+	wait_event_interruptible(GIOP_waitq, pinval);
+
+   	copy_to_user(buff, &pinval, 1);
     return 1;	
 }
 
@@ -55,14 +50,6 @@ static irqreturn_t GIOP_interript(int irq, void *dev_id)
 static int GIOP_park_open(struct inode *inode, struct file *file)
 {
 	int ret;
-
-	spinlock(&GIOP_lcok);
-	if (flag){
-		spin_unlock(&GIOP_lcok);
-		return -EBUSY;
-	}
-	flag++;
-	spin_unlock(&GIOP_lcok);
 	
 	ret = request_irq(IRQ_EINT0, GIOP_interript, IRQF_TRIGGER_HIGH,
 				"GPIO_test", NULL);
@@ -82,9 +69,6 @@ static int GIOP_park_open(struct inode *inode, struct file *file)
 
 static int GIOP_park_release(struct inode *inode, struct file *file)
 {
-	spinlock(&GIOP_lcok);
-	flag--;
-	spin_unlock(&GIOP_lcok);
 	gpio_free(GPIO_PF0);
 	free_irq(IRQ_EINT0, GIOP_interript);
 
