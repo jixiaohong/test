@@ -13,9 +13,9 @@
 #define DEVICE_NAME			"GIOP_park"
 #define GIOP_park_MAJOR 	232
 
-static unsigned int flag = 0;
-
 static volatile int pinval;
+static volatile int flag = 0;
+
 
 static DECLARE_TASKLET(GIOP_taskllet, GIOP_do_tasklet, 0);
 static DECLARE_WAIT_QUEUE_HEAD(GIOP_waitq);
@@ -25,17 +25,20 @@ static DECLARE_WAIT_QUEUE_HEAD(GIOP_waitq);
 static void GIOP_do_tasklet(unsigned long)
 {   
 	pinval = gpio_get_value(GPIO_PF0);
+
+	flag = 1;
 	
     wake_up_interruptible(&GIOP_waitq); 
 }
 
 static ssize_t GIOP_park_read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
 {
-	pinval = gpio_get_value(GPIO_PF0);
-
-	wait_event_interruptible(GIOP_waitq, pinval);
+	wait_event_interruptible(GIOP_waitq, flag);
 
    	copy_to_user(buff, &pinval, 1);
+	
+	flag = 0;
+	
     return 1;	
 }
 
@@ -51,7 +54,7 @@ static int GIOP_park_open(struct inode *inode, struct file *file)
 {
 	int ret;
 	
-	ret = request_irq(IRQ_EINT0, GIOP_interript, IRQF_TRIGGER_HIGH,
+	ret = request_irq(IRQ_EINT0, GIOP_interript, IRQF_TRIGGER_RISING|IRQF_TRIGGER_FALLING,
 				"GPIO_test", NULL);
 	if (ret){
 		GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
@@ -64,6 +67,11 @@ static int GIOP_park_open(struct inode *inode, struct file *file)
 		GTP_ERROR("Unable to request gpio\n");
 		return -1;
 	}
+	
+	pinval = gpio_get_value(GPIO_PF0);
+	if (pinval)
+		flag = 1;
+	
 	return 0;
 }
 
